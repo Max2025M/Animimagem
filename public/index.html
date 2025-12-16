@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Render Video</title>
+<style>
+body{background:#111;color:#fff;font-family:Arial,sans-serif;text-align:center;}
+.previewCanvas{border:3px solid #fff; margin:20px 0;}
+</style>
+</head>
+<body>
+<h2>Upload Imagem & Pré-visualizar Animação</h2>
+<input type="file" id="image" accept="image/*"><br><br>
+<select id="animation">
+<option value="lr">Esquerda → Direita</option>
+<option value="rl">Direita → Esquerda</option>
+<option value="tb">Cima → Baixo</option>
+<option value="bt">Baixo → Cima</option>
+<option value="zoomIn">Zoom In</option>
+<option value="zoomOut">Zoom Out</option>
+</select><br><br>
+<input type="number" id="duration" value="6" min="1" max="30"> duração (segundos)<br><br>
+<canvas class="previewCanvas" width="640" height="360"></canvas><br>
+<button id="renderBtn">Render Video MP4</button>
+
+<script>
+let imgRaw=null;
+let animation=null;
+let duration=null;
+const canvas=document.querySelector('.previewCanvas');
+const ctx=canvas.getContext('2d');
+const fps=30;
+let animRequest=null;
+
+document.getElementById('image').onchange=e=>{
+  imgRaw=new Image();
+  imgRaw.onload=()=>playPreview();
+  imgRaw.src=URL.createObjectURL(e.target.files[0]);
+};
+
+function playPreview(){
+  if(!imgRaw) return;
+  animation=document.getElementById('animation').value;
+  duration=parseFloat(document.getElementById('duration').value);
+  const iw=imgRaw.width, ih=imgRaw.height;
+  let scale=Math.max(canvas.width/iw, canvas.height/ih)*1.3;
+  let zoomFrom=scale, zoomTo=scale;
+
+  let sx=(iw*scale-canvas.width)/2;
+  let sy=(ih*scale-canvas.height)/2;
+  let ex=sx, ey=sy;
+  switch(animation){
+    case 'lr': sx=0; ex=iw*scale-canvas.width; break;
+    case 'rl': sx=iw*scale-canvas.width; ex=0; break;
+    case 'tb': sy=0; ey=ih*scale-canvas.height; break;
+    case 'bt': sy=ih*scale-canvas.height; ey=0; break;
+    case 'zoomIn': zoomTo=scale*1.25; break;
+    case 'zoomOut': zoomFrom=scale*1.25; break;
+  }
+
+  const totalFrames=Math.floor(duration*fps);
+  let i=0;
+  function step(){
+    const t=i/totalFrames;
+    const e=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    const z=zoomFrom+(zoomTo-zoomFrom)*e;
+    const x=sx+(ex-sx)*e;
+    const y=sy+(ey-sy)*e;
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(imgRaw,-x,-y,iw*z,ih*z);
+    i++;
+    if(i<=totalFrames) animRequest=requestAnimationFrame(step);
+  }
+  cancelAnimationFrame(animRequest);
+  step();
+}
+
+document.getElementById('renderBtn').onclick=async()=>{
+  if(!imgRaw) return alert('Selecione uma imagem primeiro!');
+  const file=document.getElementById('image').files[0];
+  const formData=new FormData();
+  formData.append('image', file);
+  formData.append('animation', document.getElementById('animation').value);
+  formData.append('duration', document.getElementById('duration').value);
+  formData.append('speed',1);
+
+  const res=await fetch('/render',{method:'POST',body:formData});
+  const blob=await res.blob();
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download="video.mp4"; a.click();
+};
+</script>
+</body>
+</html>
