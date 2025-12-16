@@ -1,17 +1,16 @@
-FROM node:20
+FROM python:3.11-slim
 
-# Instala ffmpeg no sistema
 RUN apt-get update && \
     apt-get install -y ffmpeg && \
-    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "3000"]
